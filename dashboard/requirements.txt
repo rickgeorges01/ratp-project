@@ -1,0 +1,11 @@
+# Dashboard Requirements
+streamlit==1.31.0
+pandas==2.1.4
+numpy==1.24.3
+plotly==5.17.0
+altair==5.2.0
+scikit-learn==1.3.2
+boto3==1.34.34
+kafka-python==2.0.2
+python-dotenv==1.0.0
+requests==2.31.0

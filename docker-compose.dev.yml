@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # DATA PRODUCER
+  data-producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    container_name: ratp-data-producer
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - STATION=auber
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - LOG_LEVEL=INFO
+      - SEND_INTERVAL=30
+    volumes:
+      - ./producer:/app
+      - ./data:/app/data
+    networks:
+      - ratp-network
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - minio
+
+  # SPARK STREAMING JOB
+  spark-streaming:
+    build:
+      context: ./spark-jobs
+      dockerfile: Dockerfile
+    container_name: ratp-spark-streaming
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - CHECKPOINT_LOCATION=/tmp/checkpoints
+    volumes:
+      - ./spark-jobs:/app
+      - spark-checkpoints:/tmp/checkpoints
+    networks:
+      - ratp-network
+    restart: unless-stopped
+    depends_on:
+      - spark-master
+
+  # STREAMLIT DASHBOARD
+  streamlit-app:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: ratp-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - STATION=auber
+      - MODEL_PATH=/app/models/pm10_predictor.pkl
+    volumes:
+      - ./dashboard:/app
+      - ./models:/app/models  # Modèles locaux partagés
+    networks:
+      - ratp-network
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - minio
+    profiles:
+      - dashboard
+
+volumes:
+  spark-checkpoints:
+
+networks:
+  ratp-network:
+    external: true

@@ -1,0 +1,8 @@
+# Producer Requirements
+kafka-python==2.0.2
+pandas==2.1.4
+numpy==1.24.3
+python-dotenv==1.0.0
+boto3==1.34.34
+schedule==1.2.0
+loguru==0.7.2
