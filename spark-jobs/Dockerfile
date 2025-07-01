@@ -10,9 +10,11 @@ RUN pip3 install kafka-python boto3 pandas scikit-learn
 COPY . /app
 WORKDIR /app
 
-# Permissions
-RUN chown -R spark:spark /app
-USER spark
+# Permissions - Utiliser l'utilisateur Bitnami (1001)
+RUN chown -R 1001:1001 /app
+
+# Retour à l'utilisateur non-root Bitnami
+USER 1001
 
 # Variables d'environnement
 ENV SPARK_MASTER_URL=spark://spark-master:7077

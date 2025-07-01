@@ -15,5 +15,9 @@ ENV KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 ENV STATION=auber
 ENV SEND_INTERVAL=30
 
+# Attribution des permissions au nouvel utilisateur
+# Basculement vers l'utilisateur non-root
+
+
 # Point d'entrée
 CMD ["python", "producer.py"]

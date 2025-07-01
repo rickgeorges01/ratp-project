@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # =================================
   # KAFKA ECOSYSTEM
@@ -56,10 +54,9 @@ services:
       - ratp-network
     restart: unless-stopped
 
-
   # DATA LAKE STORAGE
   minio:
-    image: minio/minio:RELEASE.2024-06-29T01-20-47Z
+    image: minio/minio:latest
     container_name: ratp-minio
     ports:
       - "9000:9000"
@@ -76,30 +73,29 @@ services:
 
   # Setup initial des buckets
   minio-setup:
-    image: minio/mc:RELEASE.2024-06-29T09-06-00Z
+    image: minio/mc:latest
     container_name: ratp-minio-setup
     depends_on:
       - minio
     entrypoint: >
       /bin/sh -c "
-      sleep 10;
-      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin123;
-      /usr/bin/mc mb myminio/ratp-raw --ignore-existing;
-      /usr/bin/mc mb myminio/ratp-curated --ignore-existing;
-      /usr/bin/mc mb myminio/ratp-gold --ignore-existing;
-      echo 'Data Lake buckets created successfully';
-      "
+        sleep 10;
+        /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin123;
+        /usr/bin/mc mb myminio/ratp-raw --ignore-existing;
+        /usr/bin/mc mb myminio/ratp-curated --ignore-existing;
+        /usr/bin/mc mb myminio/ratp-gold --ignore-existing;
+        echo 'Data Lake buckets created successfully';
+        "
     networks:
       - ratp-network
-
 
   # SPARK CLUSTER
   spark-master:
     image: bitnami/spark:3.5.1
     container_name: ratp-spark-master
     ports:
-      - "8082:8080"  # Spark Master Web UI
-      - "7077:7077"  # Spark Master Port
+      - "8082:8080" # Spark Master Web UI
+      - "7077:7077" # Spark Master Port
     environment:
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
@@ -117,7 +113,7 @@ services:
     image: bitnami/spark:3.5.1
     container_name: ratp-spark-worker
     ports:
-      - "8083:8081"  # Spark Worker Web UI
+      - "8083:8081" # Spark Worker Web UI
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
@@ -136,7 +132,6 @@ services:
       - spark-master
     restart: unless-stopped
 
-
 # VOLUMES PERSISTANTS
 volumes:
   zookeeper-data:
@@ -145,7 +140,6 @@ volumes:
     driver: local
   minio-data:
     driver: local
-
 
 # NETWORK
 networks:
