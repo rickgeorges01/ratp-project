@@ -1,19 +1,46 @@
+version: '3.8'
 
 services:
-  # DATA PRODUCER
-  data-producer:
+
+  # BATCH DATA PRODUCER
+  batch-producer:
     build:
       context: ./producer
       dockerfile: Dockerfile
-    container_name: ratp-data-producer
+    container_name: ratp-batch-producer
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - STATION=auber
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123
+      - PRODUCER_MODE=batch
+      - BATCH_SCHEDULE=0 */6 * * *
       - LOG_LEVEL=INFO
-      - SEND_INTERVAL=30
+    volumes:
+      - ./producer:/app
+      - ./data:/app/data
+      - ml-models:/app/models
+      - app-logs:/app/logs
+    networks:
+      - ratp-network
+    restart: unless-stopped
+    depends_on:
+      - minio
+    profiles:
+      - batch
+
+
+  # STREAMING PRODUCER (MÉTÉO)
+  streaming-producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    container_name: ratp-streaming-producer
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-1:29092,kafka-2:29093
+      - PRODUCER_MODE=streaming
+      - STATION=auber
+      - SEND_INTERVAL=60
+      - LOG_LEVEL=INFO
     volumes:
       - ./producer:/app
       - ./data:/app/data
@@ -21,23 +48,26 @@ services:
       - ratp-network
     restart: unless-stopped
     depends_on:
-      - kafka
-      - minio
+      - kafka-1
+      - kafka-2
+    profiles:
+      - streaming
 
-  # SPARK STREAMING JOB
+
+  # SPARK STREAMING JOB (MÉTÉO )
   spark-streaming:
     build:
       context: ./spark-jobs
       dockerfile: Dockerfile
     container_name: ratp-spark-streaming
-    user: root  # Ajouter cette ligne
     environment:
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-1:29092,kafka-2:29093
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123
       - CHECKPOINT_LOCATION=/tmp/checkpoints
+      - STREAMING_TOPICS=meteo-data
     volumes:
       - ./spark-jobs:/app
       - spark-checkpoints:/tmp/checkpoints
@@ -46,6 +76,38 @@ services:
     restart: unless-stopped
     depends_on:
       - spark-master
+      - spark-worker-1
+      - spark-worker-2
+    profiles:
+      - streaming
+
+
+  # SPARK ETL JOB (BATCH + STREAMING FUSION)
+  spark-etl:
+    build:
+      context: ./spark-jobs
+      dockerfile: Dockerfile
+    container_name: ratp-spark-etl
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin123
+      - ETL_SCHEDULE=0 */12 * * *
+      - ETL_MODE=hybrid
+    volumes:
+      - ./spark-jobs:/app
+      - ./data:/app/data
+    networks:
+      - ratp-network
+    restart: unless-stopped
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+    profiles:
+      - etl
+
 
   # STREAMLIT DASHBOARD
   streamlit-app:
@@ -56,27 +118,33 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-1:29092,kafka-2:29093
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin123
       - STATION=auber
       - MODEL_PATH=/app/models/pm10_predictor.pkl
+      - DATA_SOURCES=batch,streaming
     volumes:
       - ./dashboard:/app
-      - ./models:/app/models  # Modèles locaux partagés
+      - ./data:/app/data
     networks:
       - ratp-network
     restart: unless-stopped
     depends_on:
-      - kafka
       - minio
     profiles:
       - dashboard
 
-volumes:
-  spark-checkpoints:
 
+# VOLUMES
+volumes:
+  # Spark fault tolerance (isolation)
+  spark-checkpoints:
+    driver: local
+
+
+# NETWORK
 networks:
   ratp-network:
     external: true

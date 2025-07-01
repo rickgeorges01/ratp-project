@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+A modifier
+Script principal (mode batch/streaming)
+"""
 import json
 import time
 import os

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Spark Test Simple - Lecture Kafka
+A modifier
+Kafka météo -->  MinIO streaming
 """
 import os
 import time
