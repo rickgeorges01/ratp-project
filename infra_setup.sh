@@ -73,9 +73,10 @@ done
 # 6. Lancer les scripts si demandé
 if [[ "$1" == "--full" ]]; then
     echo "Launching application services (batch + streaming)"
-    docker-compose -f docker compose.dev.yml --profile batch up -d
+    docker compose -f docker-compose.infra.yml -f docker-compose.dev.yml --profile batch up -d
     echo "🟢 Scripts de traitement en cours..."
 fi
+
 
 # 7. Résumé
 echo ""
