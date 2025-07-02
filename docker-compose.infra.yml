@@ -232,4 +232,5 @@ volumes:
 # NETWORK
 networks:
   ratp-network:
+    name: ratp-network
     driver: bridge

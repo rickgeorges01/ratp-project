@@ -23,8 +23,6 @@ services:
     networks:
       - ratp-network
     restart: unless-stopped
-    depends_on:
-      - minio
     profiles:
       - batch
 
@@ -154,4 +152,5 @@ volumes:
 # NETWORK
 networks:
   ratp-network:
-    external: true
+    driver: bridge
+    name: ratp-network

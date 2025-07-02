@@ -5,9 +5,13 @@ Air quality + trafic -->  MinIO direct
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, year, month, dayofmonth, lit
 import datetime
+import os 
+
+print(" Kafka servers depuis os.environ:", os.environ.get("KAFKA_BOOTSTRAP_SERVERS"))
 
 # 📅 Date de traitement (modifiable à la main si besoin)
-PROCESS_DATE = datetime.time.strftime("%Y%m%d-%H%M")
+PROCESS_DATE = "20250702-1200"
+
 
 def create_spark_session():
     return SparkSession.builder \

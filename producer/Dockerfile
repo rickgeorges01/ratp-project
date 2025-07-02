@@ -1,23 +1,19 @@
 FROM python:3.11-slim
-LABEL authors="YELEUMEU-CHRISTYRAS-WAHBA-GUELAI"
+
+# Installer les outils nécessaires + Java 17 de manière plus robuste
+RUN apt-get update -o Acquire::Retries=5 && \
+    apt-get install -y --no-install-recommends openjdk-17-jdk curl procps && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Définir JAVA_HOME
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="$JAVA_HOME/bin:$PATH"
 
 WORKDIR /app
 
-# Installation dépendances minimales
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie du code
 COPY . .
 
-# Variables d'environnement
-ENV KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-ENV STATION=auber
-ENV SEND_INTERVAL=30
-
-# Attribution des permissions au nouvel utilisateur
-# Basculement vers l'utilisateur non-root
-
-
-# Point d'entrée
-CMD ["python", "producer.py"]
+CMD ["python", "batch_producer.py"]
