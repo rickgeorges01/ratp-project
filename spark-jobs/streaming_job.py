@@ -3,77 +3,85 @@
 A modifier
 Kafka météo -->  MinIO streaming
 """
-import os
-import time
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import *
+from pyspark.sql.functions import from_json, col, year, month, dayofmonth, hour
+from pyspark.sql.types import *
 
+KAFKA_TOPIC = "weather"
+KAFKA_SERVER = "kafka:9092"  # ou localhost:9092 si tu testes sans docker
+S3_PATH = "s3a://ratp-raw/streaming/meteo/"
 
 def create_spark_session():
-    try:
-        spark = SparkSession.builder \
-            .appName("RATP-Test") \
-            .config("spark.sql.adaptive.enabled", "true") \
-            .getOrCreate()
+    return SparkSession.builder \
+        .appName("KafkaToMinIO") \
+        .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000") \
+        .config("spark.hadoop.fs.s3a.access.key", "minioadmin") \
+        .config("spark.hadoop.fs.s3a.secret.key", "minioadmin123") \
+        .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+        .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
+        .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
+        .getOrCreate()
 
-        print("Spark Session créée!")
-        return spark
-    except Exception as e:
-        print(f"Erreur Spark: {e}")
-        return None
+def main():
+    spark = create_spark_session()
+    spark.sparkContext.setLogLevel("WARN")
 
+    schema = StructType([
+        StructField("reading_id", StringType()),
+        StructField("timestamp", StringType()),
+        StructField("station", StructType([
+            StructField("name", StringType()),
+            StructField("coordinates", StructType([
+                StructField("latitude", DoubleType()),
+                StructField("longitude", DoubleType())
+            ])),
+            StructField("department", StringType()),
+            StructField("zone", StringType()),
+            StructField("altitude", IntegerType())
+        ])),
+        StructField("temperature", StructType([
+            StructField("actual_c", DoubleType()),
+            StructField("feels_like_c", DoubleType())
+        ])),
+        StructField("atmospheric", StructType([
+            StructField("humidity_percent", IntegerType()),
+            StructField("pressure_hpa", DoubleType()),
+            StructField("visibility_km", DoubleType())
+        ])),
+        StructField("wind", StructType([
+            StructField("speed_kmh", DoubleType()),
+            StructField("direction", StringType())
+        ])),
+        StructField("conditions", StructType([
+            StructField("weather", StringType()),
+            StructField("description", StringType())
+        ]))
+    ])
 
-def test_kafka_read(spark):
-    try:
-        kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
+    df_raw = spark.readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", KAFKA_SERVER) \
+        .option("subscribe", KAFKA_TOPIC) \
+        .option("startingOffsets", "latest") \
+        .load()
 
-        df = spark \
-            .readStream \
-            .format("kafka") \
-            .option("kafka.bootstrap.servers", kafka_servers) \
-            .option("subscribe", "pm10-data") \
-            .option("startingOffsets", "latest") \
-            .load()
+    df_json = df_raw.selectExpr("CAST(value AS STRING) as json_str") \
+        .select(from_json(col("json_str"), schema).alias("data")) \
+        .select("data.*") \
+        .withColumn("year", year("timestamp")) \
+        .withColumn("month", month("timestamp")) \
+        .withColumn("day", dayofmonth("timestamp")) \
+        .withColumn("hour", hour("timestamp"))
 
-        # Simple parsing
-        parsed_df = df.select(
-            col("timestamp").alias("kafka_timestamp"),
-            col("value").cast("string").alias("json_data")
-        )
+    query = df_json.writeStream \
+        .format("parquet") \
+        .option("checkpointLocation", "/tmp/checkpoints/weather") \
+        .option("path", S3_PATH) \
+        .partitionBy("year", "month", "day", "hour") \
+        .outputMode("append") \
+        .start()
 
-        # Output console
-        query = parsed_df.writeStream \
-            .outputMode("append") \
-            .format("console") \
-            .option("truncate", False) \
-            .trigger(processingTime="10 seconds") \
-            .start()
-
-        print("Spark Streaming démarré - écoute Kafka...")
-        return query
-
-    except Exception as e:
-        print(f"Erreur Kafka read: {e}")
-        return None
-
+    query.awaitTermination()
 
 if __name__ == "__main__":
-    print("Démarrage Spark Test")
-
-    spark = create_spark_session()
-    if spark:
-        query = test_kafka_read(spark)
-
-        if query:
-            try:
-                query.awaitTermination()
-            except KeyboardInterrupt:
-                print("Arrêt demandé")
-                query.stop()
-                spark.stop()
-        else:
-            print("Streaming failed")
-            time.sleep(60)
-    else:
-        print("Spark failed")
-        time.sleep(60)
+    main()

@@ -20,6 +20,7 @@ services:
       - ./data:/app/data
       - ml-models:/app/models
       - app-logs:/app/logs
+    env_file: .env
     networks:
       - ratp-network
     restart: unless-stopped
@@ -44,6 +45,7 @@ services:
     volumes:
       - ./producer:/app
       - ./data:/app/data
+    env_file: .env
     networks:
       - ratp-network
     restart: unless-stopped
@@ -68,6 +70,7 @@ services:
       - MINIO_SECRET_KEY=minioadmin123
       - CHECKPOINT_LOCATION=/tmp/checkpoints
       - STREAMING_TOPICS=meteo-data
+    env_file: .env
     volumes:
       - ./spark-jobs:/app
       - spark-checkpoints:/tmp/checkpoints
@@ -98,6 +101,7 @@ services:
     volumes:
       - ./spark-jobs:/app
       - ./data:/app/data
+    env_file: .env
     networks:
       - ratp-network
     restart: unless-stopped
